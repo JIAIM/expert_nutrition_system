@@ -2,43 +2,65 @@ def generate_expert_explanation(goal: str, calories: int, missing_ingredients: l
     explanation = "💡 **Експертний аналіз:**\n"
     goal_lower = goal.lower()
 
-    # 1. Аналіз калорійності під мету
-    explanation += f"🔹 **Енергія ({calories} ккал):** "
+    # ================= 1. ЕНЕРГІЯ ТА ЦІЛЬ =================
+    explanation += f"⚡️ **Енергія ({calories} ккал):** "
     if goal_lower == 'схуднення':
         if calories <= 350:
-            explanation += "Ідеально для дефіциту калорій. Забезпечить ситість без переїдання.\n"
+            explanation += "Ідеальний розмір порції для дефіциту. Дасть енергію, не перевантажуючи шлунок.\n"
         else:
-            explanation += "Ситна порція. Рекомендую їсти це в першій половині дня (сніданок/обід), щоб ефективно спалити калорії.\n"
+            explanation += "Досить ситна страва. Краще запланувати її на сніданок або обід, щоб організм встиг витратити ці калорії.\n"
     elif goal_lower in ['набір', 'набір маси']:
         if calories >= 450:
-            explanation += "Те, що треба для профіциту! Дасть потужний заряд для росту м'язової маси.\n"
+            explanation += "Відмінний калораж для анаболізму! Забезпечить необхідний профіцит для росту маси.\n"
         else:
-            explanation += "Порція замала для набору. Раджу додати додатковий білок (наприклад, сир або горіхи) чи збільшити грамівки.\n"
+            explanation += "Трохи замало калорій для повноцінного прийому їжі на масонаборі. Додайте жменю горіхів, олію або подвійте порцію.\n"
     else:
-        explanation += "Оптимально для підтримки вашої поточної форми та здорового обміну речовин.\n"
+        explanation += "Оптимальна калорійність для підтримки стабільної ваги та здорового метаболізму.\n"
 
-    # 2. Аналіз нутрієнтів
-    protein_markers = ["Кур", "Яловичина", "Свинина", "Риба", "Лосось", "Тунець", "Яйця", "Сир", "Креветки", "Фарш", "Печінка", "Сочевиця"]
-    fiber_markers = ["Помідор", "Огірок", "Капуста", "Броколі", "Гречка", "Вівсян", "Яблуко", "Морква", "Шпинат", "Авокадо", "Буряк"]
+    # ================= 2. МАКРО ТА МІКРОНУТРІЄНТИ =================
+    # Словники-маркери корисних речовин
+    protein_markers = ["кур", "яловичин", "свинин", "риба", "лосось", "тунець", "яйц", "сир", "креветк", "фарш",
+                       "печінк", "сочевиц", "індичк"]
+    fiber_markers = ["помідор", "огірок", "капуст", "броколі", "гречк", "вівсян", "яблук", "моркв", "шпинат", "авокадо",
+                     "буряк", "булгур", "сочевиц"]
+    omega3_markers = ["лосось", "оселедець", "тунець", "авокадо", "волоський горіх", "оливков", "мигдаль", "сало"]
+    vitamin_markers = ["помідор", "перець", "лимон", "апельсин", "броколі", "ківі", "полуниц", "шпинат", "моркв",
+                       "яблук"]
+    calcium_markers = ["сир", "молоко", "кефір", "йогурт", "сметан", "вершк", "пармезан", "моцарелла"]
 
-    has_protein = any(any(p.lower() in str(m).lower() for p in protein_markers) for m in matched_names) if matched_names else False
-    has_fiber = any(any(f.lower() in str(m).lower() for f in fiber_markers) for m in matched_names) if matched_names else False
+    # Перевіряємо, що з цього є у вибраних інгредієнтах (ігноруючи регістр)
+    has_protein = any(
+        any(p in str(m).lower() for p in protein_markers) for m in matched_names) if matched_names else False
+    has_fiber = any(any(f in str(m).lower() for f in fiber_markers) for m in matched_names) if matched_names else False
+    has_omega3 = any(
+        any(o in str(m).lower() for o in omega3_markers) for m in matched_names) if matched_names else False
+    has_vitamins = any(
+        any(v in str(m).lower() for v in vitamin_markers) for m in matched_names) if matched_names else False
+    has_calcium = any(
+        any(c in str(m).lower() for c in calcium_markers) for m in matched_names) if matched_names else False
 
-    explanation += "🔹 **Користь:** "
-    if has_protein and has_fiber:
-        explanation += "Ідеальний баланс! Білок захистить м'язи, а клітковина дасть довгу ситість і користь для травлення."
-    elif has_protein:
-        explanation += "Багате джерело протеїну, що критично важливо для відновлення м'язів та пружності шкіри."
-    elif has_fiber:
-        explanation += "Тут багато складних вуглеводів та клітковини. Це дасть тривалу енергію без стрибків цукру."
+    benefits = []
+    if has_protein:
+        benefits.append("💪 **Білок:** захист та відновлення м'язових тканин.")
+    if has_fiber:
+        benefits.append("🌾 **Клітковина:** плавне вивільнення енергії та користь для мікробіома.")
+    if has_omega3:
+        benefits.append("🐟 **Корисні жири:** підтримка серця, судин та гормональної системи.")
+    if has_vitamins:
+        benefits.append("🍋 **Вітаміни:** зміцнення імунітету та антиоксидантний ефект.")
+    if has_calcium:
+        benefits.append("🥛 **Кальцій:** міцність кісток, зубів та нервової системи.")
+
+    if benefits:
+        explanation += "🧬 **Нутрієнтний профіль:**\n" + "\n".join(benefits)
     else:
-        explanation += "Швидке джерело енергії для вашого організму."
+        explanation += "🧬 **Нутрієнтний профіль:** Базове джерело енергії (переважно прості вуглеводи/жири)."
 
-    # 3. Аналіз нестачі
+    # ================= 3. АНАЛІЗ НЕСТАЧІ =================
     if missing_ingredients:
         missed_str = ", ".join(missing_ingredients)
-        explanation += f"\n\n🛒 *Для ідеалу не вистачає:* {missed_str}."
+        explanation += f"\n\n🛒 *Порада:* Щоб страва вийшла ідеальною, вам бракує: {missed_str}."
     else:
-        explanation += "\n\n✨ *Супер! У вас є всі інгредієнти для цього рецепта.*"
+        explanation += "\n\n✨ *Клас!* У вас є абсолютно всі інгредієнти."
 
     return explanation
