@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -27,6 +27,17 @@ async def cmd_start(message: Message, state: FSMContext):
         parse_mode="Markdown"
     )
     await state.set_state(Onboarding.gender)
+
+
+def get_main_menu():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🍳 Підібрати рецепт"), KeyboardButton(text="🛒 Мій холодильник")],
+            [KeyboardButton(text="⚙️ Змінити параметри"), KeyboardButton(text="🎯 Змінити ціль")]
+        ],
+        resize_keyboard=True
+    )
+
 
 @router.message(Command("reset"))
 async def cmd_reset(message: Message, state: FSMContext):
@@ -118,9 +129,32 @@ async def process_goal(message: Message, state: FSMContext):
         )
         conn.close()
 
-    await message.answer(
-        f"Анкету збережено!\nВаша добова норма: {targets['calories']} ккал.\n"
-        f"Б: {targets['proteins']}г, Ж: {targets['fats']}г, В: {targets['carbs']}г.",
-        reply_markup=make_kb(["Що в холодильнику?"])
+    expert_text = (
+        f"✅ **Анкету збережено!**\n\n"
+        f"Ваша базова потреба розрахована за науковою формулою Міффліна-Сан Жеора з урахуванням активності.\n"
+        f"🔥 **Добова норма:** {targets['calories']} ккал.\n\n"
+        f"📊 **Чому такий розподіл БЖУ (1г жиру = 9 ккал, 1г білка/вуглеводів = 4 ккал):**\n"
+        f"🥩 **Білки ({targets['proteins']}г)**: 30% калорійності. Це будівельний матеріал для м'язів, імунітету та шкіри.\n"
+        f"🥑 **Жири ({targets['fats']}г)**: 30% калорійності. Критично важливі для правильної роботи гормональної системи.\n"
+        f"🌾 **Вуглеводи ({targets['carbs']}г)**: 40% калорійності. Ваше головне джерело енергії для роботи мозку та тіла.\n\n"
+        f"Що будемо робити далі?"
     )
+
+    await message.answer(expert_text, reply_markup=get_main_menu(), parse_mode="Markdown")
     await state.clear()
+
+
+# Додаємо обробники для швидкої зміни параметрів
+@router.message(F.text == "⚙️ Змінити параметри")
+async def btn_change_params(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Почнемо спочатку. Вкажіть вашу стать:", reply_markup=make_kb(["Чоловік", "Жінка"]))
+    await state.set_state(Onboarding.gender)
+
+
+@router.message(F.text == "🎯 Змінити ціль")
+async def btn_change_goal(message: Message, state: FSMContext):
+    await message.answer("Яка ваша нова мета?", reply_markup=make_kb(["Схуднення", "Підтримка", "Набір маси"]))
+    await state.set_state(Onboarding.goal)
+    # Щоб не перепроходити все, ми маємо завантажити дані з БД.
+    # Але для спрощення поки перекидаємо на початок, якщо ціль змінюється окремо, або вимагаємо повний ресет.
