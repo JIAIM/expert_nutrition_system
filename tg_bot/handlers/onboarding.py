@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from tg_bot.states import Onboarding
 from core.calculator import calculate_daily_targets
-from database.connections import get_db_connection
+from database.connection import get_db_connection
 from database.queries import upsert_user
 
 router = Router()
@@ -20,7 +20,19 @@ def make_kb(items):
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     await message.answer(
-        "Привіт! Я експертна система харчування. Вкажіть вашу стать:",
+        "Привіт! Я експертна система харчування.\n"
+        "💡 *Підказка: якщо захочете змінити свої дані в майбутньому, просто напишіть /reset*\n\n"
+        "Вкажіть вашу стать:",
+        reply_markup=make_kb(["Чоловік", "Жінка"]),
+        parse_mode="Markdown"
+    )
+    await state.set_state(Onboarding.gender)
+
+@router.message(Command("reset"))
+async def cmd_reset(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "🔄 Ваші дані скинуто! Почнемо спочатку. Вкажіть вашу стать:",
         reply_markup=make_kb(["Чоловік", "Жінка"])
     )
     await state.set_state(Onboarding.gender)
@@ -57,9 +69,19 @@ async def process_weight(message: Message, state: FSMContext):
 async def process_height(message: Message, state: FSMContext):
     try:
         await state.update_data(height=float(message.text))
+
+        text = (
+            "Оберіть ваш рівень фізичної активності:\n\n"
+            "🛋 **1.2 (Сидячий)** - мінімум руху, робота за комп'ютером, відсутність тренувань.\n"
+            "🚶‍♂️ **1.375 (Легка)** - легкі тренування 1-3 рази на тиждень або щоденні прогулянки.\n"
+            "🏃‍♂️ **1.55 (Середня)** - тренування 3-5 разів на тиждень, активний спосіб життя.\n"
+            "🏋️‍♂️ **1.725 (Висока)** - інтенсивні тренування 6-7 разів на тиждень або важка фізична робота."
+        )
+
         await message.answer(
-            "Оберіть рівень активності:",
-            reply_markup=make_kb(["1.2 (Сидячий)", "1.375 (Легка)", "1.55 (Середня)", "1.725 (Висока)"])
+            text,
+            reply_markup=make_kb(["1.2 (Сидячий)", "1.375 (Легка)", "1.55 (Середня)", "1.725 (Висока)"]),
+            parse_mode="Markdown"
         )
         await state.set_state(Onboarding.activity)
     except ValueError:

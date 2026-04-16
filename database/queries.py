@@ -1,21 +1,76 @@
-import os
-import psycopg2
-from psycopg2.extras import DictCursor
-from dotenv import load_dotenv
+def upsert_user(conn, tg_id, gender, age, weight, height, activity, goal, targets):
+    cursor = conn.cursor()
+    query = """
+        INSERT INTO users (tg_id, gender, age, weight, height, activity_level, goal, 
+                           target_calories, target_proteins, target_fats, target_carbs)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (tg_id) DO UPDATE SET
+            gender = EXCLUDED.gender,
+            age = EXCLUDED.age,
+            weight = EXCLUDED.weight,
+            height = EXCLUDED.height,
+            activity_level = EXCLUDED.activity_level,
+            goal = EXCLUDED.goal,
+            target_calories = EXCLUDED.target_calories,
+            target_proteins = EXCLUDED.target_proteins,
+            target_fats = EXCLUDED.target_fats,
+            target_carbs = EXCLUDED.target_carbs;
+    """
+    cursor.execute(query, (
+        tg_id, gender, age, weight, height, activity, goal,
+        targets['calories'], targets['proteins'], targets['fats'], targets['carbs']
+    ))
+    conn.commit()
+    cursor.close()
 
-load_dotenv()
 
-def get_db_connection():
-    try:
-        connection = psycopg2.connect(
-            host=os.getenv("DB_HOST"),
-            port=os.getenv("DB_PORT"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            dbname=os.getenv("DB_NAME")
-        )
-        connection.cursor_factory = DictCursor
-        return connection
-    except Exception as e:
-        print(f"Помилка підключення до БД: {e}")
-        return None
+def get_categories(conn):
+    """Витягує список унікальних категорій продуктів"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL;")
+    categories = [row['category'] for row in cursor.fetchall()]
+    cursor.close()
+    return categories
+
+
+def get_ingredients_by_category(conn, category):
+    """Витягує продукти конкретної категорії"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT ingredient_id, name FROM ingredients WHERE category = %s ORDER BY name;", (category,))
+    items = cursor.fetchall()
+    cursor.close()
+    return items
+
+
+def get_smart_recipes(conn, ingredient_ids, user_tg_id):
+    """Розумний пошук: знаходить рецепти, де є хоча б 50% інгредієнтів"""
+    cursor = conn.cursor()
+
+    # 1. Дістаємо мету користувача
+    cursor.execute("SELECT goal FROM users WHERE tg_id = %s;", (user_tg_id,))
+    user_data = cursor.fetchone()
+    user_goal = user_data['goal'] if user_data else "Підтримка"
+
+    # 2. Шукаємо рецепти (мінімум 50% збігу)
+    query = """
+        SELECT 
+            r.recipe_id, 
+            r.title, 
+            r.total_calories_base, 
+            r.instructions,
+            COUNT(ri.ingredient_id) as total_ingredients,
+            SUM(CASE WHEN ri.ingredient_id = ANY(%s) THEN 1 ELSE 0 END) as matched_ingredients,
+            ARRAY_AGG(i.name) FILTER (WHERE NOT ri.ingredient_id = ANY(%s)) as missing_ingredients
+        FROM recipes r
+        JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
+        JOIN ingredients i ON ri.ingredient_id = i.ingredient_id
+        GROUP BY r.recipe_id, r.title, r.total_calories_base, r.instructions
+        HAVING SUM(CASE WHEN ri.ingredient_id = ANY(%s) THEN 1 ELSE 0 END)::float / COUNT(ri.ingredient_id) >= 0.5
+        ORDER BY matched_ingredients DESC, total_calories_base ASC
+        LIMIT 5;
+    """
+    cursor.execute(query, (ingredient_ids, ingredient_ids, ingredient_ids))
+    recipes = cursor.fetchall()
+    cursor.close()
+
+    return recipes, user_goal

@@ -17,5 +17,5 @@ def get_db_connection():
         connection.cursor_factory = DictCursor
         return connection
     except Exception as e:
-        print(f"Помилка підключення до БД: {e}")
+        print(f"Помилка підключення: {e}")
         return None

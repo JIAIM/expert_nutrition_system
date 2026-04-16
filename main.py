@@ -3,6 +3,7 @@ import os
 from aiogram import Bot, Dispatcher
 from dotenv import load_dotenv
 from tg_bot.handlers.onboarding import router as onboarding_router
+from tg_bot.handlers.inventory import router as inventory_router
 
 load_dotenv()
 
@@ -10,6 +11,7 @@ bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
 dp.include_router(onboarding_router)
+dp.include_router(inventory_router)
 
 async def main():
     await dp.start_polling(bot)
