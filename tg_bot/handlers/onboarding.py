@@ -154,7 +154,10 @@ async def btn_change_params(message: Message, state: FSMContext):
 
 @router.message(F.text == "🎯 Змінити ціль")
 async def btn_change_goal(message: Message, state: FSMContext):
-    await message.answer("Яка ваша нова мета?", reply_markup=make_kb(["Схуднення", "Підтримка", "Набір маси"]))
-    await state.set_state(Onboarding.goal)
-    # Щоб не перепроходити все, ми маємо завантажити дані з БД.
-    # Але для спрощення поки перекидаємо на початок, якщо ціль змінюється окремо, або вимагаємо повний ресет.
+    await state.clear()
+    await message.answer(
+        "Щоб правильно перерахувати норму калорій під нову ціль, мені потрібно оновити ваші поточні параметри (адже ваша вага могла змінитись).\n\n"
+        "Вкажіть вашу стать:",
+        reply_markup=make_kb(["Чоловік", "Жінка"])
+    )
+    await state.set_state(Onboarding.gender)
