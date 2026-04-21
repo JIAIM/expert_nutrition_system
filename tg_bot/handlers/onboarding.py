@@ -144,7 +144,7 @@ async def process_goal(message: Message, state: FSMContext):
     await state.clear()
 
 
-# Додаємо обробники для швидкої зміни параметрів
+# Додаємо обробники для швидкої зміни параметрів.
 @router.message(F.text == "⚙️ Змінити параметри")
 async def btn_change_params(message: Message, state: FSMContext):
     await state.clear()
