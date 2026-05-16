@@ -1,11 +1,12 @@
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from tg_bot.states import Onboarding
 from core.calculator import calculate_daily_targets
 from database.connection import get_db_connection
-from database.queries import upsert_user
+from database.queries import upsert_user, get_user
+
 
 router = Router()
 
@@ -19,14 +20,31 @@ def make_kb(items):
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
-    await message.answer(
-        "Привіт! Я експертна система харчування.\n"
-        "💡 *Підказка: якщо захочете змінити свої дані в майбутньому, просто напишіть /reset*\n\n"
-        "Вкажіть вашу стать:",
-        reply_markup=make_kb(["Чоловік", "Жінка"]),
-        parse_mode="Markdown"
-    )
-    await state.set_state(Onboarding.gender)
+    await state.clear()
+
+    # Підключаємося до БД і перевіряємо, чи є вже такий юзер
+    conn = get_db_connection()
+    user = get_user(conn, message.from_user.id)
+    conn.close()
+
+    if user:
+        # Користувач ВЖЕ Є в базі! Вітаємо його і даємо меню.
+        await message.answer(
+            f"З поверненням! 👋\n"
+            f"Ваша поточна ціль: **{user['goal']}** ({user['target_calories']} ккал).\n\n"
+            f"Чим можу допомогти сьогодні?",
+            reply_markup=get_main_menu(),
+            parse_mode="Markdown"
+        )
+    else:
+        # Користувача немає — запускаємо анкету
+        await message.answer(
+            "Привіт! Я експертна система харчування.\n"
+            "💡 Підказка: якщо захочете змінити свої дані в майбутньому, просто напишіть /reset або скористайтеся налаштуваннями.\n\n"
+            "Вкажіть вашу стать:",
+            reply_markup=make_kb(["Чоловік", "Жінка"])
+        )
+        await state.set_state(Onboarding.gender)
 
 
 def get_main_menu():
@@ -52,7 +70,7 @@ async def cmd_reset(message: Message, state: FSMContext):
 @router.message(Onboarding.gender)
 async def process_gender(message: Message, state: FSMContext):
     await state.update_data(gender=message.text)
-    await message.answer("Введіть ваш вік (у роках):")
+    await message.answer("Введіть ваш вік (у роках):", reply_markup=ReplyKeyboardRemove())
     await state.set_state(Onboarding.age)
 
 
@@ -144,20 +162,41 @@ async def process_goal(message: Message, state: FSMContext):
     await state.clear()
 
 
-# Додаємо обробники для швидкої зміни параметрів.
 @router.message(F.text == "⚙️ Змінити параметри")
 async def btn_change_params(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Почнемо спочатку. Вкажіть вашу стать:", reply_markup=make_kb(["Чоловік", "Жінка"]))
+    await message.answer(
+        "Оновлюємо ваші фізичні параметри. Почнемо спочатку.\n"
+        "Вкажіть вашу стать:",
+        reply_markup=make_kb(["Чоловік", "Жінка"])
+    )
     await state.set_state(Onboarding.gender)
 
 
 @router.message(F.text == "🎯 Змінити ціль")
 async def btn_change_goal(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "Щоб правильно перерахувати норму калорій під нову ціль, мені потрібно оновити ваші поточні параметри (адже ваша вага могла змінитись).\n\n"
-        "Вкажіть вашу стать:",
-        reply_markup=make_kb(["Чоловік", "Жінка"])
+    # 1. Дістаємо поточні параметри користувача з надійної бази даних
+    conn = get_db_connection()
+    user = get_user(conn, message.from_user.id)
+    conn.close()
+
+    if not user:
+        await message.answer("Я ще не маю ваших даних. Будь ласка, натисніть /start.")
+        return
+
+    # 2. Завантажуємо ці дані з бази назад у тимчасову пам'ять бота (FSM),
+    # щоб формула Міффліна-Сан Жеора змогла з ними працювати
+    await state.update_data(
+        gender=user['gender'],
+        age=user['age'],
+        weight=user['weight'],
+        height=user['height'],
+        activity=user['activity_level']
     )
-    await state.set_state(Onboarding.gender)
+
+    # 3. Перекидаємо користувача ОДРАЗУ на останній крок (вибір цілі)
+    await message.answer(
+        "Яка ваша нова мета?",
+        reply_markup=make_kb(["Схуднення", "Підтримка", "Набір маси"])
+    )
+    await state.set_state(Onboarding.goal)

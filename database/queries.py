@@ -1,3 +1,37 @@
+import json
+
+def export_users_to_json_file(conn, output_path="data/users_profiles_backup.json"):
+    """Експортує анкетні дані всіх користувачів з PostgreSQL у файл JSON"""
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT tg_id, gender, age, weight, height, activity_level, goal, 
+               target_calories, target_proteins, target_fats, target_carbs 
+        FROM users;
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+
+    backup_data = {}
+    for row in rows:
+        backup_data[str(row['tg_id'])] = {
+            "gender": row['gender'],
+            "age": row['age'],
+            "weight": row['weight'],
+            "height": row['height'],
+            "activity_level": row['activity_level'],
+            "goal": row['goal'],
+            "targets": {
+                "calories": row['target_calories'],
+                "proteins": row['target_proteins'],
+                "fats": row['target_fats'],
+                "carbs": row['target_carbs']
+            }
+        }
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(backup_data, f, ensure_ascii=False, indent=4)
+    print(f" Надійна резервна копія БД створена за шляхом: {output_path}")
+
 def upsert_user(conn, tg_id, gender, age, weight, height, activity, goal, targets):
     cursor = conn.cursor()
     query = """
@@ -88,3 +122,11 @@ def get_ingredient_ids_by_names(conn, names):
     results = cursor.fetchall()
     cursor.close()
     return [row['ingredient_id'] for row in results]
+
+def get_user(conn, tg_id):
+    """Отримує всі дані користувача за його Telegram ID"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE tg_id = %s;", (tg_id,))
+    user = cursor.fetchone()
+    cursor.close()
+    return user
